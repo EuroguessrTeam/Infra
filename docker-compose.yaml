@@ -1,0 +1,164 @@
+version: '3'
+
+services:
+  db:
+    container_name: postgres
+    image: postgres
+    environment:
+      POSTGRES_USER: $POSTGRES_USER
+      POSTGRES_PASSWORD: $POSTGRES_PASSWORD
+      POSTGRES_DB: $POSTGRES_DB
+    ports:
+      - "$POSTGRES_PORT:$POSTGRES_PORT"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - monitoring
+
+  euroguessr:
+    container_name: euroguessr
+    image: ghcr.io/euroguessrteam/euroguessr:master
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.euroguessr.rule=Host(`www.$DOMAIN_NAME`) || Host(`$DOMAIN_NAME`)" 
+      - "traefik.http.routers.euroguessr.entrypoints=websecure"
+      - "traefik.http.services.euroguessr.loadbalancer.server.port=$EUROGUESSR_PORT"
+      - "traefik.http.routers.euroguessr.tls.certresolver=euroguessr"
+    expose:
+      - $EUROGUESSR_PORT
+    volumes:
+      - ./appsettings.json:/app/appsettings.json
+    # environment:
+      # ASPNETCORE_ENVIRONMENT: Development
+    networks:
+      - monitoring
+
+  portainer:
+    container_name: portainer
+    image: portainer/portainer-ce:latest
+    expose:
+      - PORTAINER_PORT1
+      - PORTAINER_PORT2
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data:/data
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.portainer.rule=Host(`portainer.$DOMAIN_NAME`)" 
+      - "traefik.http.routers.portainer.entrypoints=websecure"
+      - "traefik.http.services.portainer.loadbalancer.server.port=$PORTAINER_PORT2"
+      - "traefik.http.routers.portainer.tls.certresolver=euroguessr"
+    networks:
+      - monitoring
+
+  traefik:
+    container_name: reverse_proxy
+    image: traefik:latest
+    command: 
+      - "--api=true"
+      - "--api.dashboard=true"
+      - "--providers.docker=true"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.euroguessr.acme.tlschallenge=true"
+      - "--certificatesresolvers.euroguessr.acme.email=loangayrard@gmail.com"
+      - "--certificatesresolvers.euroguessr.acme.storage=/letsencrypt/acme.json"
+    labels:
+      - "traefik.http.routers.api.rule=Host (`traefik.$DOMAIN_NAME`)"
+      - "traefik.http.routers.api.service=api@internal"
+      - "traefik.http.routers.api.entrypoints=websecure"
+      - "traefik.http.routers.api.middlewares=auth"
+      - "traefik.http.middlewares.auth.basicauth.users=$TRAEFIK_AUTH_USER"
+      - "traefik.http.routers.api.tls.certresolver=euroguessr"
+    ports:
+      - "$TRAEFIK_PORT1:$TRAEFIK_PORT1"
+      - "$TRAEFIK_PORT2:$TRAEFIK_PORT2"
+    volumes:
+      - "./letsencrypt:/letsencrypt"
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - monitoring
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.36.0
+    container_name: cadvisor
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    # devices:
+    #   - /dev/kmsg
+    expose:
+      - $CADVISOR_PORT
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.cadvisor.rule=Host(`cadvisor.$DOMAIN_NAME`)" 
+      - "traefik.http.routers.cadvisor.entrypoints=websecure"
+      - "traefik.http.services.cadvisor.loadbalancer.server.port=$CADVISOR_PORT"
+      - "traefik.http.routers.cadvisor.tls.certresolver=euroguessr"
+    networks:
+      - monitoring
+
+  node-exporter:
+    image: quay.io/prometheus/node-exporter:latest
+    container_name: node-exporter
+    pid: host
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    expose:
+      - $NODE_EXPORTER_PORT
+    networks:
+      - monitoring
+
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    volumes:
+      - ./prometheus:/etc/prometheus
+      - prometheus-data:/prometheus
+    expose:
+      - $PROMETHEUS_PORT
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.prometheus.rule=Host(`prometheus.$DOMAIN_NAME`)" 
+      - "traefik.http.routers.prometheus.entrypoints=websecure"
+      - "traefik.http.routers.prometheus.middlewares=auth"
+      - "traefik.http.middlewares.auth.basicauth.users=$TRAEFIK_AUTH_USER"
+      - "traefik.http.services.prometheus.loadbalancer.server.port=$PROMETHEUS_PORT"
+      - "traefik.http.routers.prometheus.tls.certresolver=euroguessr"  
+    networks:
+      - monitoring
+
+  grafana:
+    image: grafana/grafana
+    container_name: grafana
+    volumes:
+      - grafana-data:/var/lib/grafana
+    expose:
+      - $GRAFANA_PORT
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.grafana.rule=Host(`grafana.$DOMAIN_NAME`)" 
+      - "traefik.http.routers.grafana.entrypoints=websecure"
+      - "traefik.http.services.grafana.loadbalancer.server.port=$GRAFANA_PORT"
+      - "traefik.http.routers.grafana.tls.certresolver=euroguessr"
+    networks:
+      - monitoring
+
+volumes:
+  postgres-data:
+  portainer_data:
+  prometheus-data:
+  grafana-data:
+
+networks:
+  monitoring:
+    driver: bridge
