@@ -1,0 +1,12 @@
+{
+    "Logging": {
+      "LogLevel": {
+        "Default": "Information",
+        "Microsoft.AspNetCore": "Warning"
+      }
+    },
+    "Connectionstrings": {
+      "DatabaseConnection": "Server=db;Port=5432;Database=euroguessr;Username=postgres;Password=postgres"
+    },
+    "AllowedHosts": "*"
+  }
