@@ -153,6 +153,36 @@ services:
     networks:
       - monitoring
 
+  keycloak:
+    image: quay.io/keycloak/keycloak:22.0.5
+    container_name: keycloak
+    command:
+      - start --https-certificate-file=/keycloak/certificate.pem --https-certificate-key-file=/keycloak/key.pem
+    environment:
+      KEYCLOAK_ADMIN_PASSWORD: $KEYCLOAK_ADMIN_PASSWORD
+      KEYCLOAK_ADMIN: $KEYCLOAK_ADMIN
+      KC_DB: postgres
+      KC_DB_URL: $KC_DB_URL
+      KC_DB_USERNAME: $POSTGRES_USER
+      KC_DB_PASSWORD: $POSTGRES_PASSWORD
+      KC_HOSTNAME: keycloak.euroguessr.com
+      KC_PROXY: edge
+      KC_HTTP_ENABLED: "true"
+      KC_PROXY_ADDRESS_FORWARDING: "true"
+      KC_HOSTNAME_STRICT: "false"
+    volumes:
+      - ./keycloak:/keycloak
+    expose:
+      - $KEYCLOAK_PORT
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.keycloak.rule=Host(`keycloak.$DOMAIN_NAME`)" 
+      - "traefik.http.routers.keycloak.entrypoints=websecure"
+      - "traefik.http.services.keycloak.loadbalancer.server.port=$KEYCLOAK_PORT"
+      - "traefik.http.routers.keycloak.tls.certresolver=euroguessr"
+    networks:
+      - monitoring
+
 volumes:
   postgres-data:
   portainer_data:
