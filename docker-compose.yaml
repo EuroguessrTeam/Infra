@@ -20,7 +20,7 @@ services:
     image: ghcr.io/euroguessrteam/euroguessr:master
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.euroguessr.rule=Host(`www.$DOMAIN_NAME`) || Host(`$DOMAIN_NAME`)" 
+      - "traefik.http.routers.euroguessr.rule=Host(`$DOMAIN_NAME`)" 
       - "traefik.http.routers.euroguessr.entrypoints=websecure"
       - "traefik.http.services.euroguessr.loadbalancer.server.port=$EUROGUESSR_PORT"
       - "traefik.http.routers.euroguessr.tls.certresolver=euroguessr"
@@ -79,7 +79,7 @@ services:
       - monitoring
 
   cadvisor:
-    image: gcr.io/cadvisor/cadvisor:v0.36.0
+    image: gcr.io/cadvisor/cadvisor:v0.47.2
     container_name: cadvisor
     volumes:
       - /:/rootfs:ro
@@ -142,6 +142,7 @@ services:
     container_name: grafana
     volumes:
       - grafana-data:/var/lib/grafana
+      - ./grafana:/etc/grafana/
     expose:
       - $GRAFANA_PORT
     labels:
